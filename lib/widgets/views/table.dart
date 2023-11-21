@@ -20,11 +20,11 @@ class PaginatedTable<T> extends StatefulWidget {
   final TableViewExpansion Function(BuildContext context, T item, int index)? expansionBuilder;
   final double Function(BuildContext context, T item, int index)? rowHeightCalculator;
   final double rowHeight;
-  final PaginatedListRefresher<T>? refreshProvider;
+  final PaginatedListStream<T>? refreshStream;
   final PaginatedListProvider<T> dataProvider;
   final Widget Function(dynamic error)? errorBuilder;
   final TableViewRow Function(BuildContext context, TableViewRow current)? rowBuildDecorator;
-  final int pageSize;
+  final int limit;
   final double horizontalScrollViewPadding;
   final double loaderPadding;
   final bool autoSize;
@@ -35,7 +35,7 @@ class PaginatedTable<T> extends StatefulWidget {
     required this.headers,
     required this.rowBuilder,
     required this.dataProvider,
-    required this.pageSize,
+    required this.limit,
     this.expansionBuilder,
     this.rowHeight = 100,
     this.headerHeight = 40,
@@ -43,7 +43,7 @@ class PaginatedTable<T> extends StatefulWidget {
     this.headerDividerHeight = 1.0,
     this.horizontalScrollViewPadding = Spacings.medium,
     this.loaderPadding = Spacings.small,
-    this.refreshProvider,
+    this.refreshStream,
     this.rowHeightCalculator,
     this.headerDividerColor,
     this.rowDividerColor,
@@ -177,9 +177,9 @@ class _PaginatedTableState<T> extends State<PaginatedTable<T>> {
                                   expansion: effectiveExpansion,
                                 );
                               },
-                              pageSize: widget.pageSize,
+                              limit: widget.limit,
                               dataProvider: widget.dataProvider,
-                              refreshProvider: widget.refreshProvider,
+                              refreshStream: widget.refreshStream,
                               errorBuilder: widget.errorBuilder,
                               onChanged: (items) {
                                 if (widget.rowHeightCalculator == null) {

@@ -13,10 +13,10 @@ class PaginatedSingleDropdown<T> extends ConsumerStatefulWidget {
   final double? elevation;
   final ValueChanged<T>? onSubmit;
   final VoidCallback? onClear;
-  final int pageSize;
+  final int limit;
   final void Function(String value) onSearch;
   final PaginatedListProvider<T> dataProvider;
-  final PaginatedListRefresher<T>? refreshProvider;
+  final PaginatedListStream<T>? refreshStream;
   final bool insertSelectedText;
   final Widget? fieldPrefix;
   final Widget Function(BuildContext context, T item)? itemPrefix;
@@ -29,7 +29,7 @@ class PaginatedSingleDropdown<T> extends ConsumerStatefulWidget {
   const PaginatedSingleDropdown({
     super.key,
     required this.label,
-    required this.pageSize,
+    required this.limit,
     required this.onSearch,
     required this.dataProvider,
     required this.suggestionsHeight,
@@ -37,7 +37,7 @@ class PaginatedSingleDropdown<T> extends ConsumerStatefulWidget {
     this.insertSelectedText = false,
     this.width,
     this.onSubmit,
-    this.refreshProvider,
+    this.refreshStream,
     this.suggestionLeading,
     this.elevation,
     this.onClear,
@@ -124,7 +124,6 @@ class _PaginatedSingleDropdownState<T> extends ConsumerState<PaginatedSingleDrop
             WidgetsBinding.instance.addPostFrameCallback((timeStamp) {
               if (mounted) {
                 ref.invalidate(widget.dataProvider);
-                if (widget.refreshProvider != null) ref.invalidate(widget.refreshProvider!);
               }
             });
           }
@@ -158,9 +157,9 @@ class _PaginatedSingleDropdownState<T> extends ConsumerState<PaginatedSingleDrop
                             ],
                           ),
                   ),
-                  pageSize: widget.pageSize,
+                  limit: widget.limit,
                   dataProvider: widget.dataProvider,
-                  refreshProvider: widget.refreshProvider,
+                  refreshStream: widget.refreshStream,
                 ),
               ),
             )

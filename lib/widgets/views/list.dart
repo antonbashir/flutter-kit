@@ -8,17 +8,17 @@ import '../loaders/progress.dart';
 
 typedef SearchProvider = StateProvider<String>;
 typedef PaginatedListProvider<T> = StateNotifierProvider<PaginatedListDataNotifier<T>, DataPage<T>>;
-typedef PaginatedListRefresher<T> = StreamProvider<DataEvent<T>>;
+typedef PaginatedListStream<T> = Stream<DataEvent<T>>;
 
 class DataPage<T> {
-  final int page;
+  final int offset;
   final List<T> data;
 
-  const DataPage({required this.page, required this.data});
+  const DataPage({required this.offset, required this.data});
 }
 
 class DataDelta<T> {
-  final T from;
+  final bool Function(T element) from;
   final T to;
 
   DataDelta({required this.from, required this.to});
@@ -26,46 +26,43 @@ class DataDelta<T> {
 
 class DataEvent<T> {
   final DataDelta<T>? modify;
-  final T? remove;
   final T? add;
-  final bool Function(T left, T right) equals;
+  final bool Function(T element)? delete;
 
-  static bool _defaultEquals<T>(left, right) => left == right;
+  DataEvent({this.delete, this.add, this.modify});
 
-  DataEvent({this.remove, this.add, this.modify, bool Function(T left, T right)? equals}) : equals = equals ?? _defaultEquals;
-
-  factory DataEvent.modify(T from, T to) => DataEvent(modify: DataDelta(from: from, to: to));
+  factory DataEvent.modify(bool Function(T element) from, T to) => DataEvent(modify: DataDelta(from: from, to: to));
 
   factory DataEvent.add(T element) => DataEvent(add: element);
 
-  factory DataEvent.remove(T element) => DataEvent(remove: element);
+  factory DataEvent.delete(bool Function(T element) finder) => DataEvent(delete: finder);
 }
 
 class PaginatedListDataNotifier<T> extends StateNotifier<DataPage<T>> {
-  final FutureOr<List<T>> Function(int page, int pageSize, bool Function(T element)? filter) fetcher;
+  final FutureOr<List<T>> Function(int offset, int limit, bool Function(T element)? filter) fetcher;
   final bool Function(T element)? filter;
 
   var _last = false;
 
   bool get last => _last;
 
-  PaginatedListDataNotifier(this.fetcher, {this.filter}) : super(const DataPage(page: -1, data: []));
+  PaginatedListDataNotifier(this.fetcher, {this.filter}) : super(const DataPage(offset: -1, data: []));
 
-  Future<void> fetch(int page, int pageSize) async {
-    final data = await fetcher(page, pageSize, filter);
+  Future<void> fetch(int offset, int limit) async {
+    final data = await fetcher(offset, limit, filter);
     if (mounted) {
-      _last = data.length < pageSize;
-      state = DataPage(page: page, data: data);
+      _last = data.length < limit;
+      state = DataPage(offset: offset, data: data);
       return;
     }
   }
 }
 
 class PaginatedList<T> extends ConsumerStatefulWidget {
-  final PaginatedListRefresher<T>? refreshProvider;
+  final PaginatedListStream<T>? refreshStream;
   final PaginatedListProvider<T> dataProvider;
   final ItemWidgetBuilder<T> itemBuilder;
-  final int pageSize;
+  final int limit;
   final ScrollController? scrollController;
   final Axis? scrollDirection;
   final void Function(List<T> items)? onChanged;
@@ -77,10 +74,10 @@ class PaginatedList<T> extends ConsumerStatefulWidget {
   const PaginatedList({
     super.key,
     required this.itemBuilder,
-    required this.pageSize,
+    required this.limit,
     required this.dataProvider,
     this.listKey,
-    this.refreshProvider,
+    this.refreshStream,
     this.scrollController,
     this.scrollDirection,
     this.onChanged,
@@ -95,6 +92,7 @@ class PaginatedList<T> extends ConsumerStatefulWidget {
 
 class _PaginatedListState<T> extends ConsumerState<PaginatedList<T>> {
   final _controller = PagingController<int, T>(firstPageKey: 0);
+  StreamSubscription? _refresher;
 
   @override
   void initState() {
@@ -104,17 +102,19 @@ class _PaginatedListState<T> extends ConsumerState<PaginatedList<T>> {
     _controller.addListener(_notify);
     ref.listenManual<DataPage<T>>(widget.dataProvider, _onDataUpdate);
     ref.listenManual<PaginatedListDataNotifier<T>>(widget.dataProvider.notifier, _onDataProviderUpdate);
+    _refresher = widget.refreshStream?.listen(_onRefresh);
   }
 
   @override
   void dispose() {
     _controller.removePageRequestListener(_fetch);
     _controller.removeListener(_notify);
+    _refresher?.cancel();
     super.dispose();
   }
 
   void _fetch(int page) {
-    ref.read(widget.dataProvider.notifier).fetch(page, widget.pageSize).onError((error, stack) {
+    ref.read(widget.dataProvider.notifier).fetch(page, widget.limit).onError((error, stack) {
       if (mounted) {
         _controller.error = error;
         return;
@@ -125,12 +125,12 @@ class _PaginatedListState<T> extends ConsumerState<PaginatedList<T>> {
   void _onDataUpdate(DataPage<T>? previous, DataPage<T> next) {
     if (!mounted) return;
     final newItems = next.data;
-    final isLastPage = newItems.length < widget.pageSize;
+    final isLastPage = newItems.length < widget.limit;
     if (isLastPage) {
       _controller.appendLastPage(newItems);
       return;
     }
-    _controller.appendPage(newItems, next.page + newItems.length);
+    _controller.appendPage(newItems, next.offset + newItems.length);
   }
 
   void _onDataProviderUpdate(PaginatedListDataNotifier<T>? previous, PaginatedListDataNotifier<T> next) {
@@ -149,14 +149,14 @@ class _PaginatedListState<T> extends ConsumerState<PaginatedList<T>> {
     final modified = [...(_controller.itemList ?? <T>[])];
     if (filter == null) {
       if (value.modify != null) {
-        final existed = modified.indexWhere((element) => value.equals(element, value.modify!.from));
+        final existed = modified.indexWhere(value.modify!.from);
         if (existed != -1) {
           modified[existed] = value.modify!.to;
           changed = true;
         }
       }
-      if (value.remove != null) {
-        modified.removeWhere((element) => value.equals(element, value.remove as T));
+      if (value.delete != null) {
+        modified.removeWhere(value.modify!.from);
         changed = true;
       }
       if (value.add != null && ref.read(widget.dataProvider.notifier).last) {
@@ -167,20 +167,20 @@ class _PaginatedListState<T> extends ConsumerState<PaginatedList<T>> {
       return;
     }
     if (value.modify != null) {
-      final existed = modified.indexWhere((element) => value.equals(element, value.modify!.from));
+      final existed = modified.indexWhere(value.modify!.from);
       if (existed != -1) {
         final permitted = filter(value.modify!.to);
         if (permitted) {
           modified[existed] = value.modify!.to;
         }
         if (!permitted) {
-          modified.removeWhere((element) => value.equals(element, value.modify!.from));
+          modified.removeWhere(value.modify!.from);
         }
         changed = true;
       }
     }
-    if (value.remove != null) {
-      modified.removeWhere((element) => value.equals(element, value.remove as T));
+    if (value.delete != null) {
+      modified.removeWhere(value.modify!.from);
       changed = true;
     }
     if (value.add != null && ref.read(widget.dataProvider.notifier).last && filter(value.add as T)) {
@@ -195,23 +195,20 @@ class _PaginatedListState<T> extends ConsumerState<PaginatedList<T>> {
   }
 
   @override
-  Widget build(BuildContext context) {
-    if (widget.refreshProvider != null) ref.watch(widget.refreshProvider!).whenData(_onRefresh);
-    return PagedListView<int, T>(
-      key: widget.listKey,
-      scrollDirection: widget.scrollDirection ?? Axis.vertical,
-      scrollController: widget.scrollController ?? ScrollController(),
-      builderDelegate: PagedChildBuilderDelegate<T>(
-        noItemsFoundIndicatorBuilder: (context) => widget.emptyIndicator ?? Container(),
-        noMoreItemsIndicatorBuilder: (context) => widget.emptyIndicator ?? Container(),
-        firstPageProgressIndicatorBuilder: (context) => widget.progressIndicator ?? const Progress(),
-        newPageProgressIndicatorBuilder: (context) => widget.progressIndicator ?? const Progress(),
-        itemBuilder: widget.itemBuilder,
-        firstPageErrorIndicatorBuilder: (context) => widget.errorBuilder?.call(_controller.error) ?? Container(),
-        newPageErrorIndicatorBuilder: (context) => widget.errorBuilder?.call(_controller.error) ?? Container(),
-        animateTransitions: false,
-      ),
-      pagingController: _controller,
-    );
-  }
+  Widget build(BuildContext context) => PagedListView<int, T>(
+        key: widget.listKey,
+        scrollDirection: widget.scrollDirection ?? Axis.vertical,
+        scrollController: widget.scrollController ?? ScrollController(),
+        builderDelegate: PagedChildBuilderDelegate<T>(
+          noItemsFoundIndicatorBuilder: (context) => widget.emptyIndicator ?? Container(),
+          noMoreItemsIndicatorBuilder: (context) => widget.emptyIndicator ?? Container(),
+          firstPageProgressIndicatorBuilder: (context) => widget.progressIndicator ?? const Progress(),
+          newPageProgressIndicatorBuilder: (context) => widget.progressIndicator ?? const Progress(),
+          itemBuilder: widget.itemBuilder,
+          firstPageErrorIndicatorBuilder: (context) => widget.errorBuilder?.call(_controller.error) ?? Container(),
+          newPageErrorIndicatorBuilder: (context) => widget.errorBuilder?.call(_controller.error) ?? Container(),
+          animateTransitions: false,
+        ),
+        pagingController: _controller,
+      );
 }

@@ -13,10 +13,10 @@ class PaginatedSingleSearch extends ConsumerStatefulWidget {
   final double? elevation;
   final ValueChanged<String>? onSubmit;
   final VoidCallback? onClear;
-  final int pageSize;
+  final int limit;
   final void Function(String value) onSearch;
   final PaginatedListProvider<String> dataProvider;
-  final PaginatedListRefresher<String>? refreshProvider;
+  final PaginatedListStream<String>? refreshStream;
   final bool insertSelectedText;
   final Widget? searchFieldLeading;
   final Widget Function(BuildContext context, String item)? itemTileLeading;
@@ -30,14 +30,14 @@ class PaginatedSingleSearch extends ConsumerStatefulWidget {
   const PaginatedSingleSearch({
     super.key,
     required this.label,
-    required this.pageSize,
+    required this.limit,
     required this.onSearch,
     required this.dataProvider,
     required this.suggestionsHeight,
     this.insertSelectedText = false,
     this.width,
     this.onSubmit,
-    this.refreshProvider,
+    this.refreshStream,
     this.suggestionLeading,
     this.elevation,
     this.onClear,
@@ -108,7 +108,6 @@ class _PaginatedSingleSearchState extends ConsumerState<PaginatedSingleSearch> {
             WidgetsBinding.instance.addPostFrameCallback((timeStamp) {
               if (mounted) {
                 ref.invalidate(widget.dataProvider);
-                if (widget.refreshProvider != null) ref.invalidate(widget.refreshProvider!);
               }
             });
           }
@@ -144,9 +143,9 @@ class _PaginatedSingleSearchState extends ConsumerState<PaginatedSingleSearch> {
                             ],
                           ),
                   ),
-                  pageSize: widget.pageSize,
+                  limit: widget.limit,
                   dataProvider: widget.dataProvider,
-                  refreshProvider: widget.refreshProvider,
+                  refreshStream: widget.refreshStream,
                 ),
               ),
             )

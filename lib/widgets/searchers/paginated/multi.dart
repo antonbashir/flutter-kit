@@ -14,10 +14,10 @@ class PaginatedMultiSearch extends ConsumerStatefulWidget {
   final ValueChanged<String>? onAdd;
   final ValueChanged<String>? onDelete;
   final VoidCallback? onClear;
-  final int pageSize;
+  final int limit;
   final void Function(String value) onSearch;
   final PaginatedListProvider<String> dataProvider;
-  final PaginatedListRefresher<String>? refreshProvider;
+  final PaginatedListStream<String>? refreshStream;
   final bool enabled;
   final Widget Function(dynamic error)? errorBuilder;
   final Widget? searchFieldLeading;
@@ -26,14 +26,14 @@ class PaginatedMultiSearch extends ConsumerStatefulWidget {
   const PaginatedMultiSearch({
     super.key,
     required this.label,
-    required this.pageSize,
+    required this.limit,
     required this.onSearch,
     required this.dataProvider,
     required this.suggestionsHeight,
     required this.initialSelected,
     this.width,
     this.onAdd,
-    this.refreshProvider,
+    this.refreshStream,
     this.onDelete,
     this.suggestionLeading,
     this.elevation,
@@ -95,7 +95,6 @@ class _PaginatedCheckboxSearchState extends ConsumerState<PaginatedMultiSearch> 
               WidgetsBinding.instance.addPostFrameCallback((timeStamp) {
                 if (mounted) {
                   ref.invalidate(widget.dataProvider);
-                  if (widget.refreshProvider != null) ref.invalidate(widget.refreshProvider!);
                 }
               });
             }
@@ -135,9 +134,9 @@ class _PaginatedCheckboxSearchState extends ConsumerState<PaginatedMultiSearch> 
                         ),
                       );
                     },
-                    pageSize: widget.pageSize,
+                    limit: widget.limit,
                     dataProvider: widget.dataProvider,
-                    refreshProvider: widget.refreshProvider,
+                    refreshStream: widget.refreshStream,
                   ),
                 ),
               )

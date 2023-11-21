@@ -14,9 +14,9 @@ class PaginatedTagCheckboxesFilter extends ConsumerStatefulWidget {
   final Widget Function(BuildContext context, String item)? suggestionLeading;
   final double? elevation;
   final ValueChanged<Set<String>>? onChanged;
-  final int pageSize;
+  final int limit;
   final PaginatedListProvider<String> dataProvider;
-  final PaginatedListRefresher<String>? refreshProvider;
+  final PaginatedListStream<String>? refreshStream;
   final void Function(String search) onSearch;
   final Widget Function(dynamic error)? errorBuilder;
 
@@ -26,10 +26,10 @@ class PaginatedTagCheckboxesFilter extends ConsumerStatefulWidget {
     required this.width,
     required this.suggestionsHeight,
     required this.selected,
-    required this.pageSize,
+    required this.limit,
     required this.dataProvider,
     required this.onSearch,
-    this.refreshProvider,
+    this.refreshStream,
     this.onChanged,
     this.suggestionLeading,
     this.elevation,
@@ -64,9 +64,9 @@ class _TagFilterState extends ConsumerState<PaginatedTagCheckboxesFilter> {
             label: widget.label,
             dataProvider: widget.dataProvider,
             initialSelected: selected,
-            pageSize: widget.pageSize,
+            limit: widget.limit,
             onSearch: widget.onSearch,
-            refreshProvider: widget.refreshProvider,
+            refreshStream: widget.refreshStream,
             suggestionsHeight: widget.suggestionsHeight,
             suggestionLeading: widget.suggestionLeading,
             elevation: widget.elevation,
