@@ -24,16 +24,23 @@ class DataDelta<T> {
   DataDelta({required this.from, required this.to});
 }
 
+class DataNew<T> {
+  final T item;
+  final bool first;
+
+  DataNew({required this.item, required this.first});
+}
+
 class DataEvent<T> {
   final DataDelta<T>? modify;
-  final T? add;
+  final DataNew<T>? add;
   final bool Function(T element)? delete;
 
   DataEvent({this.delete, this.add, this.modify});
 
   factory DataEvent.modify(bool Function(T element) from, T to) => DataEvent(modify: DataDelta(from: from, to: to));
 
-  factory DataEvent.add(T element) => DataEvent(add: element);
+  factory DataEvent.add(T element, {bool first = false}) => DataEvent(add: DataNew(item: element, first: first));
 
   factory DataEvent.delete(bool Function(T element) finder) => DataEvent(delete: finder);
 }
@@ -146,7 +153,7 @@ class _PaginatedListState<T> extends ConsumerState<PaginatedList<T>> {
     if (!mounted) return;
     final filter = ref.read(widget.dataProvider.notifier).filter;
     var changed = false;
-    final modified = [...(_controller.itemList ?? <T>[])];
+    var modified = [...(_controller.itemList ?? <T>[])];
     if (filter == null) {
       if (value.modify != null) {
         final existed = modified.indexWhere(value.modify!.from);
@@ -159,8 +166,8 @@ class _PaginatedListState<T> extends ConsumerState<PaginatedList<T>> {
         modified.removeWhere(value.delete!);
         changed = true;
       }
-      if (value.add != null && ref.read(widget.dataProvider.notifier).last) {
-        modified.add(value.add as T);
+      if (value.add != null && (ref.read(widget.dataProvider.notifier).last || value.add!.first)) {
+        modified = value.add!.first ? [value.add!.item, ...modified] : [...modified, value.add!.item];
         changed = true;
       }
       if (changed) _controller.itemList = modified;
@@ -183,8 +190,8 @@ class _PaginatedListState<T> extends ConsumerState<PaginatedList<T>> {
       modified.removeWhere(value.delete!);
       changed = true;
     }
-    if (value.add != null && ref.read(widget.dataProvider.notifier).last && filter(value.add as T)) {
-      modified.add(value.add as T);
+    if (value.add != null && (ref.read(widget.dataProvider.notifier).last || value.add!.first) && filter(value.add as T)) {
+      modified = value.add!.first ? [value.add!.item, ...modified] : [...modified, value.add!.item];
       changed = true;
     }
     if (changed) _controller.itemList = modified;
