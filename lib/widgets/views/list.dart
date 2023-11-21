@@ -156,7 +156,7 @@ class _PaginatedListState<T> extends ConsumerState<PaginatedList<T>> {
         }
       }
       if (value.delete != null) {
-        modified.removeWhere(value.modify!.from);
+        modified.removeWhere(value.delete!);
         changed = true;
       }
       if (value.add != null && ref.read(widget.dataProvider.notifier).last) {
@@ -180,7 +180,7 @@ class _PaginatedListState<T> extends ConsumerState<PaginatedList<T>> {
       }
     }
     if (value.delete != null) {
-      modified.removeWhere(value.modify!.from);
+      modified.removeWhere(value.delete!);
       changed = true;
     }
     if (value.add != null && ref.read(widget.dataProvider.notifier).last && filter(value.add as T)) {
